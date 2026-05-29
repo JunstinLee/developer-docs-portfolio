@@ -49,7 +49,7 @@ I am available for freelance contracts, documentation audits, and API documentat
 
 - **GitHub**: [github.com/JunstinLee](https://github.com/JunstinLee)
 - **Medium**: [medium.com/@justinlee_12991](https://medium.com/@justinlee_12991)
-- **Email**: `justinlee@aivault.dev
+- **Email**:  justinlee@aivault.dev
 
 ---
 
