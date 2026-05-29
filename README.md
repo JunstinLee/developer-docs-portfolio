@@ -47,9 +47,9 @@ This sample showcases:
 
 I am available for freelance contracts, documentation audits, and API documentation portal setups.
 
-- **GitHub**: [github.com/your-username](https://github.com/your-username)
-- **Medium**: [medium.com/@your-username](https://medium.com/@your-username)
-- **Email**: `your-email@example.com`
+- **GitHub**: [github.com/JunstinLee](https://github.com/JunstinLee)
+- **Medium**: [medium.com/@justinlee_12991](https://medium.com/@justinlee_12991)
+- **Email**: `justinlee@aivault.dev
 
 ---
 
