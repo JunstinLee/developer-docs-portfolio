@@ -1,51 +1,56 @@
-# Style Adaptation: Blog Style vs. Google Developer Style Guide
+# Style Adjustment: Blog Style vs. Google Developer Style Guide
 
-This document showcases my ability to adapt informal, highly-metaphorical technical blog posts into sterile, high-precision developer documentation that strictly adheres to the **Google Developer Documentation Style Guide**.
+This document demonstrates my ability to transform informal, metaphor-heavy technical blog posts into rigorous, high-precision developer documentation strictly adhering to the Google Developer Documentation Style Guide.
 
-Below are two real-world refactoring examples based on my article: *Why Does AI Forget Instructions?*
+Below are two practical refactoring examples based on my article *"Why Does AI Forget Instructions?"*.
 
----
+## Example 1: Removing Metaphors and Conversational Redundancies
 
-## Example 1: Eliminating Metaphors & Conversational Fluff
+Technical blogs use metaphors (such as "sand" and "shovels") to engage readers. However, formal developer documentation must eliminate these metaphors to lower cognitive load and prevent localization errors.
 
-Technical blogs use metaphors (like "forgetful interns" or "glass boxes") to engage readers. However, official developer documentation must eliminate these to reduce cognitive load and prevent translation (L10n) errors.
+### ❌ Blog Repository (Before Modification)
 
-### ❌ Blog Register (Before)
-> *"Think of the context window as a fixed-capacity glass box. Once the box is full, putting a new block of information in pushes the oldest block out. This is why your AI starts behaving like a brilliant but forgetful intern—it literally cannot remember what you said ten minutes ago."*
+"The effective output length is like the capacity of the shovel in the AI's hand. Even if there is plenty of sand in the box, it can only scoop out a limited amount of grains at a time. If your task is too massive and you force it to scoop an excessive amount of sand at once, it will begin to 'feel overwhelmed': it will either stop abruptly halfway through (output truncation) or, to make up the numbers, mindlessly grab stale, obsolete scraps from the bottom of the box (historical memory) to hand over to you. As a result, it starts talking nonsense, completely losing track of the original instructions you gave it."
 
-###  Google Style Register (After)
-> When the input payload size exceeds the model's context window limit, the system truncates the earliest tokens in the context state. The model cannot reference instructions or data stored in the truncated index.
+### Google Style Repository (After Modification)
 
-### 📝 Style Guide Analysis
-- **Rule Applied (Avoid Metaphors)**: Removed "glass box" and "forgetful intern." Google style requires literal, denotative terms (e.g., `input payload`, `truncated tokens`) to ensure clarity and support machine translation.
-- **Rule Applied (Sentence Structure)**: Converted a descriptive analogy into a cause-and-effect logical statement (*When X happens, the system does Y*).
-- **Rule Applied (Voice)**: Maintained active voice ("the system truncates", "the model cannot reference") instead of passive assumptions.
-
----
-
-## Example 2: Restructuring Narrative into Imperative Lists
-
-Blog posts often present recommendations in a conversational paragraph format. Enterprise documentation requires structured, scannable lists starting with strong, imperative verbs to help developers take immediate action.
-
-### ❌ Blog Register (Before)
-> *"If you want to prevent your AI from getting confused, there are several things you should definitely do. First of all, make sure to always monitor your token usage using the counter API before sending. Secondly, you shouldn't put too many system prompt instructions unless they are absolutely necessary."*
-
-###  Google Style Register (After)
-> To prevent instruction loss and optimize context window efficiency, apply the following practices:
-> 
-> 1. Query the token counter API to monitor token consumption before initiating a request.
-> 2. Limit the size of the system prompt to preserve context space for dynamic user inputs.
+When the currently occupied model context length exceeds the effective output length of the model, the system truncates the earliest tokens in the context state. The model cannot reference instructions or data stored in the truncated indices.
 
 ### 📝 Style Guide Analysis
-- **Rule Applied (Imperative Mood)**: Transformed conversational advice ("*make sure to always...*", "*you shouldn't...*") into direct commands starting with strong imperative verbs (*Query*, *Limit*).
-- **Rule Applied (List Formatting)**: Converted a narrative block into a numbered list. According to Google guidelines, numbered lists are used for sequential steps or prioritized instructions, which improves skimmability.
-- **Rule Applied (Eliminate Fillers)**: Removed filler qualifiers like "*definitely*" and "*first of all*" to adhere to the principle of "writing for a global audience."
+
+* **Rule Application (Avoid Metaphors):** Removed "sand" and "shovels". The Google Style Guide requires literal, referential terms (e.g., "input payload", "truncated tokens") to ensure clarity and support machine translation.
+* **Rule Application (Sentence Structure):** Converted descriptive analogies into causal logic statements (When X occurs, the system executes Y).
+* **Rule Application (Voice):** Maintained the active voice ("the system truncates", "the model cannot reference") instead of the passive voice.
 
 ---
 
-## Summary of Style Guide Rules Demonstrated
+## Example 2: Refactoring Narrative into Imperative Lists
 
-By implementing the refactoring above, this repository demonstrates competency in:
-1. **L10n & Global Readability Optimization**: Ensuring text translates accurately across languages by avoiding idioms.
-2. **Action-Oriented Language**: Using the second person ("you") and imperative verbs to guide developer behavior.
-3. **Structured Information Architecture**: Using bold lead-ins, ordered lists, and logical headings to make documents skimmable.
+Blog posts often present recommendations in a conversational, paragraph-based format. Enterprise documentation requires structured, scannable lists starting with strong imperative verbs to help developers take immediate action.
+
+### ❌ Blog Repository (Before Modification)
+
+"If you want to prevent the AI from getting confused, there are a few things you must definitely do. First of all, always make sure to monitor token usage using the counter API before sending a request. Secondly, you shouldn't add too many system prompt instructions unless it is absolutely necessary."
+
+### Google Style Repository (After Modification)
+
+To prevent instruction loss and optimize context window efficiency, apply the following practices:
+
+1. Query the token counter API to monitor token consumption before initiating a request.
+2. Limit the size of system prompts to reserve context space for dynamic user inputs.
+
+### 📝 Style Guide Analysis
+
+* **Rule Application (Imperative Mood):** Converted conversational recommendations ("make sure to always...", "you shouldn't...") into direct commands starting with strong imperative verbs (*Query*, *Limit*).
+* **Rule Application (List Formatting):** Converted the narrative paragraph into a numbered list. According to the Google Guide, numbered lists are used for sequential steps or prioritized items, enhancing scannability.
+* **Rule Application (Eliminate Filler Words):** Removed filler qualifiers like "definitely" and "first of all" to adhere to the principle of "writing for a global audience."
+
+---
+
+## Summary of Style Guide Rule Demonstration
+
+By implementing the refactoring detailed above, this repository demonstrates proficiency in the following areas:
+
+* **Localization and Global Readability Optimization:** Ensuring text translates accurately across languages by avoiding idioms and colloquialisms.
+* **Action-Oriented Language:** Directing developer behavior using the second person ("you") and imperative verbs.
+* **Structured Information Architecture:** Utilizing bold lead-ins, ordered lists, and logical headings to create highly scannable documentation.
