@@ -1,0 +1,1102 @@
+openapi: 3.0.3
+info:
+  title: TechDistill API
+  description: |
+    REST API specification for TechDistill — a noise-reducing AI information pipeline.
+    
+    This OpenAPI document maps the existing CLI pipeline capabilities to HTTP endpoints,
+    enabling programmatic access to trending scraping, AI analysis, and report generation.
+    
+    **Current status**: This is a design specification. The repository is currently a CLI-only tool.
+    To expose these endpoints you would wrap `core.pipeline.ScrapePipeline` and the spiders
+    in a web framework such as FastAPI or Flask.
+  version: "1.0.0"
+  contact:
+    name: TechDistill Authors
+    url: https://github.com/leejustin/TechDistill
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns the service health status and basic configuration readiness.
+      operationId: getHealth
+      tags:
+        - System
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Service is unhealthy or missing required configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /telegram/status:
+    get:
+      summary: Get Telegram configuration status
+      description: |
+        Check whether Telegram push is properly configured.
+        Returns the status of `TG_BOT_TOKEN` and `TG_CHAT_ID`.
+      operationId: getTelegramStatus
+      tags:
+        - Telegram
+      responses:
+        "200":
+          description: Telegram configuration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramStatus"
+
+  /telegram/push:
+    post:
+      summary: Push a report to Telegram
+      description: |
+        Manually push a generated Markdown report file to Telegram.
+        Mirrors `TelegramNotifier.push_report(file_path)`.
+        
+        Skips unchanged files based on MD5 hash state tracking.
+      operationId: pushTelegramReport
+      tags:
+        - Telegram
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramPushRequest"
+      responses:
+        "200":
+          description: Push result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramPushResponse"
+        "400":
+          description: Missing or invalid file path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Telegram not configured or push failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /telegram/message:
+    post:
+      summary: Send a Telegram text message
+      description: |
+        Send a plain text message to the configured Telegram chat.
+        Mirrors `TelegramNotifier.send_message(text)`.
+      operationId: sendTelegramMessage
+      tags:
+        - Telegram
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramMessageRequest"
+      responses:
+        "200":
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  result:
+                    type: object
+        "400":
+          description: Missing message text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Telegram not configured or send failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /telegram/document:
+    post:
+      summary: Send a document to Telegram
+      description: |
+        Send a file document to the configured Telegram chat.
+        Mirrors `TelegramNotifier.send_document(file_path, caption)`.
+      operationId: sendTelegramDocument
+      tags:
+        - Telegram
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/TelegramDocumentRequest"
+      responses:
+        "200":
+          description: Document sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  result:
+                    type: object
+        "400":
+          description: Missing file or invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Telegram not configured or send failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /telegram/pushes:
+    get:
+      summary: List Telegram push history
+      description: |
+        Retrieve the push state history from the state file.
+        Returns which report files have been pushed and their MD5 hashes.
+      operationId: listTelegramPushes
+      tags:
+        - Telegram
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Paginated push history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  offset:
+                    type: integer
+                  limit:
+                    type: integer
+                  pushes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TelegramPushRecord"
+        "503":
+          description: Telegram state file unreadable or not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /config:
+    get:
+      summary: Get public configuration
+      description: |
+        Returns non-sensitive runtime configuration (sources, models, limits).
+        Secrets and tokens are redacted.
+      operationId: getConfig
+      tags:
+        - System
+      responses:
+        "200":
+          description: Public configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicConfig"
+
+  /trending/{source}:
+    get:
+      summary: List trending items
+      description: |
+        Fetch trending items from a supported source.
+        Mirrors the spider `fetch_trending(limit)` contract.
+      operationId: listTrending
+      tags:
+        - Trending
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [github, hf, ph]
+          description: Source identifier — `github`, `hf` (Hugging Face), or `ph` (Product Hunt)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Maximum number of items to return
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: daily
+          description: |
+            **GitHub only** — time window for trending repositories.
+            Ignored for Hugging Face and Product Hunt.
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            **GitHub only** — filter by programming language (e.g. `python`, `javascript`).
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [models, spaces, datasets]
+            default: models
+          description: |
+            **Hugging Face only** — resource category to trend.
+      responses:
+        "200":
+          description: List of trending items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  source:
+                    type: string
+                  count:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrendingItem"
+        "400":
+          description: Invalid parameter combination
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Unknown source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream source unreachable or returned an error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /trending/{source}/{id}:
+    get:
+      summary: Get item detail
+      description: |
+        Fetch detailed content for a single item.
+        Mirrors the spider `fetch_detail(id)` contract.
+        
+        Identifier format by source:
+        - **github**: `owner/repo` (e.g. `torvalds/linux`)
+        - **hf**: `author/model-name` (e.g. `stabilityai/stable-diffusion-xl-base-1.0`)
+        - **ph**: Product slug (e.g. `linear`)
+      operationId: getItemDetail
+      tags:
+        - Trending
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [github, hf, ph]
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Source-specific item identifier
+      responses:
+        "200":
+          description: Detailed item with enriched content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendingItemDetail"
+        "404":
+          description: Item not found or source unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /ai/analyze:
+    post:
+      summary: Run AI analysis on content
+      description: |
+        Send raw content through the configured AI model and receive a short commentary.
+        Mirrors `OpenRouterAdapter.analyze_async(source, name, content)`.
+        
+        Requires `OPENROUTER_API_KEY` to be configured.
+      operationId: analyzeContent
+      tags:
+        - AI Analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIAnalyzeRequest"
+      responses:
+        "200":
+          description: AI commentary result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIAnalyzeResponse"
+        "400":
+          description: Missing required fields or content too short
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI service unavailable or rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /pipeline/run:
+    post:
+      summary: Execute the full pipeline
+      description: |
+        Trigger an end-to-end pipeline run: scrape → enrich → AI analyze → generate overview → write reports.
+        Mirrors `main.py` execution flow.
+        
+        This is an asynchronous operation. The response returns a `run_id` that can be polled via `GET /pipeline/runs/{run_id}`.
+      operationId: runPipeline
+      tags:
+        - Pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PipelineRunRequest"
+      responses:
+        "202":
+          description: Pipeline run accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunAccepted"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Pipeline cannot start (missing configuration or upstream unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /pipeline/runs/{run_id}:
+    get:
+      summary: Get pipeline run status
+      description: |
+        Retrieve the current status and results of a pipeline run.
+        Status values: `pending`, `scraping`, `analyzing`, `reporting`, `completed`, `failed`.
+      operationId: getPipelineRun
+      tags:
+        - Pipeline
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Pipeline run status and partial or full results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunStatus"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /pipeline/runs/{run_id}/reports:
+    get:
+      summary: Get pipeline run reports
+      description: |
+        Retrieve the generated Markdown reports for a completed pipeline run.
+        Returns file paths and download URLs.
+      operationId: getPipelineRunReports
+      tags:
+        - Pipeline
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Report batch metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportBatch"
+        "404":
+          description: Run not found or reports not yet generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /reports:
+    get:
+      summary: List report batches
+      description: |
+        List all generated report batches, ordered by generation time (newest first).
+      operationId: listReportBatches
+      tags:
+        - Reports
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Paginated list of report batches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  offset:
+                    type: integer
+                  limit:
+                    type: integer
+                  batches:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReportBatchSummary"
+
+  /reports/{batch_id}/{source}:
+    get:
+      summary: Get a specific report file
+      description: |
+        Download a generated Markdown report.
+        `source` can be `overview`, `github`, `hf`, or `ph`.
+      operationId: getReportFile
+      tags:
+        - Reports
+      parameters:
+        - name: batch_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Batch directory name (e.g. `TECH_PULSE_20260328_091045`)
+        - name: source
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [overview, github, hf, ph]
+      responses:
+        "200":
+          description: Markdown report content
+          content:
+            text/markdown:
+              schema:
+                type: string
+        "404":
+          description: Report file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, unhealthy]
+        version:
+          type: string
+          example: "1.0.0"
+        uptime_seconds:
+          type: integer
+        checks:
+          type: object
+          properties:
+            github_token:
+              type: string
+              enum: [configured, missing]
+            hf_token:
+              type: string
+              enum: [configured, missing]
+            ph_api_token:
+              type: string
+              enum: [configured, missing]
+            openrouter_key:
+              type: string
+              enum: [configured, missing]
+            tg_bot_token:
+              type: string
+              enum: [configured, missing]
+            tg_chat_id:
+              type: string
+              enum: [configured, missing]
+
+    PublicConfig:
+      type: object
+      required:
+        - openrouter_model
+        - openrouter_base_url
+        - sources
+      properties:
+        openrouter_model:
+          type: string
+          example: "minimax/minimax-m2.5:free"
+        openrouter_base_url:
+          type: string
+          example: "https://openrouter.ai/api/v1"
+        overview_enabled:
+          type: boolean
+          default: true
+        overview_ai_enabled:
+          type: boolean
+          default: true
+        overview_model:
+          type: string
+        ai_comment_max_chars:
+          type: integer
+          default: 2000
+        ai_comment_max_tokens:
+          type: integer
+          default: 768
+        max_content_length:
+          type: integer
+          default: 3000
+        sources:
+          type: array
+          items:
+            type: string
+          example: [github, hf, ph]
+        request_timeout:
+          type: integer
+          default: 120
+
+    TrendingItem:
+      type: object
+      required:
+        - name
+        - desc
+        - stats
+        - url
+      properties:
+        name:
+          type: string
+          description: Display name of the item
+        desc:
+          type: string
+          description: Short description or tagline
+        stats:
+          type: string
+          description: Human-readable statistics (stars, votes, likes, etc.)
+        url:
+          type: string
+          format: uri
+        path:
+          type: string
+          description: |
+            **GitHub**: `owner/repo`. **HF**: same as `name`. **PH**: slug.
+        item_id:
+          type: string
+          description: |
+            **HF**: model/space identifier. Same as `name` for HF items.
+        slug:
+          type: string
+          description: |
+            **PH**: Product Hunt slug.
+        raw_content:
+          type: string
+          description: |
+            Available only when `fetch_trending(..., full=True)` or after deep fetch.
+            May contain README, model card, or post description.
+        ai_comment:
+          type: string
+          description: AI-generated commentary (available only after AI analysis)
+
+    TrendingItemDetail:
+      allOf:
+        - $ref: "#/components/schemas/TrendingItem"
+        - type: object
+          properties:
+            raw_content:
+              type: string
+              description: |
+                Full enriched content. For GitHub this is the decoded README.
+                For HF it is the model card. For PH it is the combined tagline + description.
+            language:
+              type: string
+              description: Programming language (GitHub only)
+            stargazers_count:
+              type: integer
+              description: GitHub star count
+            forks_count:
+              type: integer
+              description: GitHub fork count
+            html_url:
+              type: string
+              format: uri
+              description: Canonical URL
+            votesCount:
+              type: integer
+              description: Product Hunt vote count
+            reviewsCount:
+              type: integer
+              description: Product Hunt review count
+            tagline:
+              type: string
+              description: Product Hunt tagline
+
+    AIAnalyzeRequest:
+      type: object
+      required:
+        - source
+        - name
+        - content
+      properties:
+        source:
+          type: string
+          enum: [github, hf, ph]
+          description: Determines which prompt template is loaded
+        name:
+          type: string
+          description: Item name for context
+        content:
+          type: string
+          description: Raw content to analyze (max 3000 chars; longer text is truncated)
+        model:
+          type: string
+          description: Override the default OpenRouter model
+        stream:
+          type: boolean
+          default: false
+          description: |
+            If `true`, the response is streamed using Server-Sent Events (SSE).
+            Otherwise a single JSON response is returned.
+
+    AIAnalyzeResponse:
+      type: object
+      required:
+        - comment
+        - cached
+      properties:
+        comment:
+          type: string
+          description: AI-generated short commentary
+        model:
+          type: string
+          description: Model ID used for this analysis
+        cached:
+          type: boolean
+          description: Whether the result was served from cache
+        tokens_used:
+          type: integer
+          nullable: true
+
+    PipelineRunRequest:
+      type: object
+      properties:
+        sources:
+          type: array
+          items:
+            type: string
+            enum: [github, hf, ph]
+          default: [github, hf, ph]
+          description: Sources to include in the run
+        deep:
+          type: boolean
+          default: true
+          description: Whether to fetch detail (README, model card, full post body)
+        ai:
+          type: boolean
+          default: true
+          description: Whether to run AI analysis after scraping
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: |
+            Override fetch limit for all sources.
+            If omitted, defaults are used (GitHub 25, HF 5, PH 10).
+        watch:
+          type: boolean
+          default: false
+          description: Whether to push reports to Telegram after generation
+
+    PipelineRunAccepted:
+      type: object
+      required:
+        - run_id
+        - status
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, scraping]
+        message:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+
+    PipelineRunStatus:
+      type: object
+      required:
+        - run_id
+        - status
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, scraping, analyzing, reporting, completed, failed]
+        progress:
+          type: object
+          properties:
+            total_items:
+              type: integer
+            scraped_items:
+              type: integer
+            analyzed_items:
+              type: integer
+        results:
+          type: object
+          description: Present when status is `completed`
+          properties:
+            batch_dir:
+              type: string
+            files:
+              type: object
+              properties:
+                overview:
+                  type: string
+                github:
+                  type: string
+                hf:
+                  type: string
+                ph:
+                  type: string
+            source_summaries:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  title:
+                    type: string
+                  count:
+                    type: integer
+                  ai_count:
+                    type: integer
+        error:
+          type: string
+          description: Present when status is `failed`
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    ReportBatch:
+      type: object
+      required:
+        - batch_id
+        - generated_at
+        - files
+      properties:
+        batch_id:
+          type: string
+          example: "TECH_PULSE_20260328_091045"
+        generated_at:
+          type: string
+          format: date-time
+        total_count:
+          type: integer
+        files:
+          type: object
+          properties:
+            overview:
+              type: string
+              description: Absolute or relative path to `overview.md`
+            github:
+              type: string
+            hf:
+              type: string
+            ph:
+              type: string
+        source_summaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceSummary"
+
+    ReportBatchSummary:
+      type: object
+      required:
+        - batch_id
+        - generated_at
+      properties:
+        batch_id:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        total_count:
+          type: integer
+        source_count:
+          type: integer
+          description: Number of sources included
+
+    SourceSummary:
+      type: object
+      required:
+        - key
+        - title
+        - count
+      properties:
+        key:
+          type: string
+          enum: [github, hf, ph]
+        title:
+          type: string
+        count:
+          type: integer
+          description: Number of items collected from this source
+        ai_count:
+          type: integer
+          description: Number of items that received AI commentary
+
+    TelegramStatus:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+          description: Whether both TG_BOT_TOKEN and TG_CHAT_ID are configured
+        bot_token:
+          type: string
+          enum: [configured, missing]
+        chat_id:
+          type: string
+          enum: [configured, missing]
+        state_file:
+          type: string
+          description: Path to the Telegram push state file
+        push_count:
+          type: integer
+          description: Number of tracked report files in the state file
+
+    TelegramPushRequest:
+      type: object
+      required:
+        - file_path
+      properties:
+        file_path:
+          type: string
+          description: Absolute or relative path to the Markdown report file to push
+        force:
+          type: boolean
+          default: false
+          description: |
+            If `true`, push even if the file hash matches the previous push state.
+            If `false`, unchanged files are skipped.
+
+    TelegramPushResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [sent, skipped, failed, disabled]
+          description: |
+            `sent` — message and document both delivered and state recorded.
+            `skipped` — file content unchanged since last push.
+            `failed` — message or document delivery failed.
+            `disabled` — Telegram is not configured.
+        file_path:
+          type: string
+        file_name:
+          type: string
+        previous_hash:
+          type: string
+          nullable: true
+        current_hash:
+          type: string
+          nullable: true
+        message_sent:
+          type: boolean
+          nullable: true
+        document_sent:
+          type: boolean
+          nullable: true
+
+    TelegramMessageRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: Message text to send. Markdown parsing is enabled.
+        parse_mode:
+          type: string
+          enum: [Markdown, HTML, none]
+          default: Markdown
+
+    TelegramDocumentRequest:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: File to upload
+        caption:
+          type: string
+          description: Optional caption for the document. Markdown parsing is enabled.
+        parse_mode:
+          type: string
+          enum: [Markdown, HTML, none]
+          default: Markdown
+
+    TelegramPushRecord:
+      type: object
+      required:
+        - file_path
+        - file_hash
+        - pushed_at
+      properties:
+        file_path:
+          type: string
+        file_hash:
+          type: string
+          description: MD5 hash of the file content at time of push
+        pushed_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of the push
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Short error code
+        message:
+          type: string
+          description: Human-readable error description
+        details:
+          type: object
+          description: Additional structured error context
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Optional API key for rate limiting and access control.
+        The underlying spiders use their own tokens (GitHub, HF, PH, OpenRouter)
+        configured via environment variables.
+
+security:
+  - ApiKeyAuth: []
